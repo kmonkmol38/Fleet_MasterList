@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Vehicle } from './types';
-import { searchVehicle, getSearchSuggestions, getExpiringVehicles } from './services/fleetService';
+import { searchVehicle, getSearchSuggestions, getExpiringVehicles, getExpiredVehicles } from './services/fleetService';
 import { saveFleetData, loadFleetData, clearFleetData } from './services/persistenceService';
 import SearchBar from './components/SearchBar';
 import VehicleInfoCard from './components/VehicleInfoCard';
@@ -116,8 +116,9 @@ const App: React.FC = () => {
         loadSuggestions();
     }, [loadSuggestions]);
 
-    const expiringVehiclesCount = useMemo(() => {
+    const upcomingAlertsCount = useMemo(() => {
         if (allVehicles.length > 0) {
+            // Only count vehicles that are expiring soon for the badge, not those already expired.
             return getExpiringVehicles(allVehicles, 20).length;
         }
         return 0;
@@ -413,9 +414,9 @@ const App: React.FC = () => {
                                         className={`relative px-3 py-1 text-sm font-medium rounded-md transition-colors ${view === 'alert' ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}
                                     >
                                         Alerts
-                                        {expiringVehiclesCount > 0 && (
+                                        {upcomingAlertsCount > 0 && (
                                             <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
-                                                {expiringVehiclesCount}
+                                                {upcomingAlertsCount}
                                             </span>
                                         )}
                                     </button>

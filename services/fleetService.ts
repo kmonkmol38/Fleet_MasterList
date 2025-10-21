@@ -136,3 +136,20 @@ export const getExpiringVehicles = (vehicles: Vehicle[], daysThreshold: number):
         return dateA - dateB;
     });
 };
+
+export const getExpiredVehicles = (vehicles: Vehicle[]): Vehicle[] => {
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+    return vehicles.filter(vehicle => {
+        const expiryDate = parseVehicleDate(vehicle.registrationExpiry);
+        if (!expiryDate) {
+            return false;
+        }
+        return expiryDate < today;
+    }).sort((a, b) => { // Sort by expiry date, most recently expired first
+        const dateA = parseVehicleDate(a.registrationExpiry)?.getTime() ?? 0;
+        const dateB = parseVehicleDate(b.registrationExpiry)?.getTime() ?? 0;
+        return dateB - dateA; // descending order
+    });
+};
