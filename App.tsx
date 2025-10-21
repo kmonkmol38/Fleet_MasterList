@@ -148,8 +148,16 @@ const App: React.FC = () => {
                             const vehicleKey = columnMap[key];
                             // @ts-ignore
                             let value = row[key];
-                            if (vehicleKey === 'rentAmount' && typeof value === 'string') {
-                                value = Number(value.replace(/,/g, ''));
+                             if (vehicleKey === 'rentAmount') {
+                                let numericValue = 0;
+                                if (typeof value === 'string') {
+                                    // Remove commas, currency symbols, and any other non-numeric characters except for a decimal point.
+                                    const cleanedValue = value.replace(/[^0-9.]+/g, "");
+                                    numericValue = cleanedValue ? parseFloat(cleanedValue) : 0;
+                                } else if (typeof value === 'number') {
+                                    numericValue = value;
+                                }
+                                value = isNaN(numericValue) ? 0 : numericValue;
                             }
                              // @ts-ignore
                             vehicle[vehicleKey] = value;
