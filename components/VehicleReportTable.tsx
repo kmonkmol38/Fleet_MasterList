@@ -4,12 +4,20 @@ import { getStatusBadgeClass } from '../utils/styleUtils';
 
 interface VehicleReportTableProps {
   vehicles: Vehicle[];
+  onVehicleSelect: (vehicleIdentifier: string) => void;
 }
 
-const VehicleReportTable: React.FC<VehicleReportTableProps> = ({ vehicles }) => {
+const VehicleReportTable: React.FC<VehicleReportTableProps> = ({ vehicles, onVehicleSelect }) => {
   if (vehicles.length === 0) {
     return <p className="text-center text-gray-400 py-8">No vehicles to display for the selected filter.</p>;
   }
+
+  const handleDoubleClick = (vehicle: Vehicle) => {
+    const identifier = vehicle.fleetNo || vehicle.regNo;
+    if (identifier) {
+      onVehicleSelect(identifier);
+    }
+  };
 
   return (
     <div className="overflow-x-auto bg-gray-800 rounded-lg border border-gray-700">
@@ -28,7 +36,11 @@ const VehicleReportTable: React.FC<VehicleReportTableProps> = ({ vehicles }) => 
         </thead>
         <tbody>
           {vehicles.map((vehicle, index) => (
-            <tr key={vehicle.fleetNo || vehicle.regNo || index} className="border-b border-gray-700 hover:bg-gray-700/50">
+            <tr 
+              key={vehicle.fleetNo || vehicle.regNo || index} 
+              className="border-b border-gray-700 hover:bg-gray-700/50 cursor-pointer"
+              onDoubleClick={() => handleDoubleClick(vehicle)}
+            >
               <td className="px-6 py-4">{index + 1}</td>
               <td className="px-6 py-4 font-medium whitespace-normal break-words">{vehicle.fleetNo || 'N/A'}</td>
               <td className="px-6 py-4 whitespace-normal break-words">{vehicle.regNo || 'N/A'}</td>

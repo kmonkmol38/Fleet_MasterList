@@ -14,9 +14,10 @@ import { Download, RotateCcw } from './Icons';
 
 interface ReportViewProps {
   vehicles: Vehicle[];
+  onVehicleSelect: (vehicleIdentifier: string) => void;
 }
 
-const ReportView: React.FC<ReportViewProps> = ({ vehicles }) => {
+const ReportView: React.FC<ReportViewProps> = ({ vehicles, onVehicleSelect }) => {
   const initialFilters = {
     businessUnit: '',
     status: '',
@@ -199,7 +200,7 @@ const ReportView: React.FC<ReportViewProps> = ({ vehicles }) => {
       </div>
       
       {hasAppliedFilters ? (
-        <VehicleReportTable vehicles={displayedVehicles} />
+        <VehicleReportTable vehicles={displayedVehicles} onVehicleSelect={onVehicleSelect} />
       ) : (
         <div className="text-center text-gray-500 py-16 bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-700">
             <p>The report data will be displayed here once filters are applied.</p>

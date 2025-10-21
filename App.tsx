@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Vehicle } from './types';
-import { searchVehicle, getSearchSuggestions } from './services/fleetService';
+import { searchVehicle, getSearchSuggestions, getExpiringVehicles } from './services/fleetService';
 import { saveFleetData, loadFleetData, clearFleetData } from './services/persistenceService';
 import SearchBar from './components/SearchBar';
 import VehicleInfoCard from './components/VehicleInfoCard';
 import LoadingSpinner from './components/LoadingSpinner';
 import ReportView from './components/ReportView';
+import AlertView from './components/AlertView';
 import { UploadCloud } from './components/Icons';
 
 // This makes TypeScript aware of the XLSX library loaded from the CDN
@@ -21,7 +22,8 @@ const App: React.FC = () => {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [fileName, setFileName] = useState<string>('');
-    const [view, setView] = useState<'search' | 'report'>('search');
+    const [view, setView] = useState<'search' | 'report' | 'alert'>('search');
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         const initializeApp = async () => {
@@ -57,6 +59,13 @@ const App: React.FC = () => {
     useEffect(() => {
         loadSuggestions();
     }, [loadSuggestions]);
+
+    const expiringVehiclesCount = useMemo(() => {
+        if (allVehicles.length > 0) {
+            return getExpiringVehicles(allVehicles, 20).length;
+        }
+        return 0;
+    }, [allVehicles]);
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -138,7 +147,12 @@ const App: React.FC = () => {
                         if (row[key] !== undefined) {
                             const vehicleKey = columnMap[key];
                             // @ts-ignore
-                            vehicle[vehicleKey] = row[key];
+                            let value = row[key];
+                            if (vehicleKey === 'rentAmount' && typeof value === 'string') {
+                                value = Number(value.replace(/,/g, ''));
+                            }
+                             // @ts-ignore
+                            vehicle[vehicleKey] = value;
                         }
                     }
                     if (!vehicle.vehiclePhoto) {
@@ -206,10 +220,17 @@ const App: React.FC = () => {
             setFileName('');
             setLastUpdated(null);
             setView('search');
+            setSearchQuery('');
         } catch (err) {
             console.error("Failed to clear stored data:", err);
             setError("Could not clear stored data. Please refresh the page.");
         }
+    };
+    
+    const handleReportRowClick = (vehicleIdentifier: string) => {
+        setView('search');
+        setSearchQuery(vehicleIdentifier);
+        handleSearch(vehicleIdentifier);
     };
 
     const renderFileUpload = () => (
@@ -240,7 +261,12 @@ const App: React.FC = () => {
     const renderSearchView = () => (
         <>
             <div className="mb-6">
-                <SearchBar onSearch={handleSearch} suggestions={suggestions} />
+                <SearchBar 
+                    onSearch={handleSearch} 
+                    suggestions={suggestions} 
+                    query={searchQuery}
+                    onQueryChange={setSearchQuery}
+                />
                 <div className="flex justify-between items-center mt-2">
                     <p className="text-xs text-green-400">
                         {fileName} loaded ({allVehicles.length} vehicles found).
@@ -284,7 +310,9 @@ const App: React.FC = () => {
             case 'search':
                 return renderSearchView();
             case 'report':
-                return <ReportView vehicles={allVehicles} />;
+                return <ReportView vehicles={allVehicles} onVehicleSelect={handleReportRowClick} />;
+            case 'alert':
+                return <AlertView vehicles={allVehicles} onVehicleSelect={handleReportRowClick} />;
             default:
                 return renderSearchView();
         }
@@ -313,6 +341,17 @@ const App: React.FC = () => {
                                         className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${view === 'report' ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}
                                     >
                                         Reports
+                                    </button>
+                                    <button
+                                        onClick={() => setView('alert')}
+                                        className={`relative px-3 py-1 text-sm font-medium rounded-md transition-colors ${view === 'alert' ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}
+                                    >
+                                        Alerts
+                                        {expiringVehiclesCount > 0 && (
+                                            <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+                                                {expiringVehiclesCount}
+                                            </span>
+                                        )}
                                     </button>
                                 </div>
                                 <button

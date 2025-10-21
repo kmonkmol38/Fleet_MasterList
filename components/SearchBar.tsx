@@ -1,19 +1,19 @@
-
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Search } from './Icons';
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
   suggestions: string[];
+  query: string;
+  onQueryChange: (query: string) => void;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({ onSearch, suggestions }) => {
-  const [query, setQuery] = useState('');
+const SearchBar: React.FC<SearchBarProps> = ({ onSearch, suggestions, query, onQueryChange }) => {
   const [activeSuggestions, setActiveSuggestions] = useState<string[]>([]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setQuery(value);
+    onQueryChange(value);
     if (value) {
       const filtered = suggestions.filter(s =>
         s.toLowerCase().includes(value.toLowerCase())
@@ -25,7 +25,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch, suggestions }) => {
   };
   
   const handleSuggestionClick = (suggestion: string) => {
-    setQuery(suggestion);
+    onQueryChange(suggestion);
     setActiveSuggestions([]);
     onSearch(suggestion);
   };

@@ -1,4 +1,5 @@
 import { Vehicle } from '../types';
+import { parseVehicleDate } from '../utils/dateUtils';
 
 // This makes TypeScript aware of the XLSX library loaded from the CDN
 declare var XLSX: any;
@@ -112,4 +113,25 @@ export const exportToExcel = (data: any[], fileName: string): void => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
     XLSX.writeFile(workbook, `${fileName}.xlsx`);
+};
+
+export const getExpiringVehicles = (vehicles: Vehicle[], daysThreshold: number): Vehicle[] => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of today for consistent comparison
+
+    const expiryLimit = new Date(today);
+    expiryLimit.setDate(today.getDate() + daysThreshold);
+
+    return vehicles.filter(vehicle => {
+        const expiryDate = parseVehicleDate(vehicle.registrationExpiry);
+        if (!expiryDate) {
+            return false;
+        }
+        expiryDate.setHours(0,0,0,0);
+        return expiryDate >= today && expiryDate <= expiryLimit;
+    }).sort((a, b) => { // Sort by expiry date, soonest first
+        const dateA = parseVehicleDate(a.registrationExpiry)!.getTime();
+        const dateB = parseVehicleDate(b.registrationExpiry)!.getTime();
+        return dateA - dateB;
+    });
 };
