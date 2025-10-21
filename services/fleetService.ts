@@ -30,23 +30,40 @@ export const getSearchSuggestions = (vehicles: Vehicle[]): Promise<{ regNos: str
     });
 };
 
+/**
+ * A robust normalization function to handle different kinds of whitespace and casing.
+ * @param value The value to normalize.
+ * @returns A trimmed, lowercase string with all whitespace collapsed.
+ */
+const normalizeValue = (value: any): string => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  // Convert to string, replace all sequences of whitespace characters (including non-breaking spaces)
+  // with a single space, then trim and convert to lowercase.
+  return String(value)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+};
+
 const getUniqueValues = (vehicles: Vehicle[], key: keyof Vehicle): string[] => {
-    // Use a Map to store unique values case-insensitively while preserving the original casing of the first encountered value.
     const uniqueMap = new Map<string, string>();
-    vehicles.forEach(v => {
-        const value = v[key];
-        if (value !== null && value !== undefined) {
-            const trimmedValue = String(value).trim();
-            if (trimmedValue !== '') {
-                const lowercasedValue = trimmedValue.toLowerCase();
-                if (!uniqueMap.has(lowercasedValue)) {
-                    uniqueMap.set(lowercasedValue, trimmedValue); // Store lowercase as key, original as value
-                }
+    vehicles.forEach(vehicle => {
+        const originalValue = vehicle[key];
+        // Ensure there is a non-empty value to process
+        if (originalValue !== null && originalValue !== undefined && String(originalValue).trim() !== '') {
+            const normalized = normalizeValue(originalValue);
+            
+            // Use the normalized value as the key to ensure uniqueness against different casings/whitespaces.
+            // Store the first-seen, trimmed, original-cased value to display in the dropdown.
+            if (!uniqueMap.has(normalized)) {
+                uniqueMap.set(normalized, String(originalValue).trim());
             }
         }
     });
-    // Return the original-cased values, sorted alphabetically
-    return Array.from(uniqueMap.values()).sort((a, b) => a.localeCompare(b));
+    // Return the display values, sorted alphabetically.
+    return Array.from(uniqueMap.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 };
 
 
@@ -70,29 +87,27 @@ export const filterVehicles = (
   vehicles: Vehicle[],
   filters: { businessUnit: string; status: string; vehicleOwner: string; rentedOrOwned: string; }
 ): Vehicle[] => {
-  // Normalize filter values to lowercase once for efficiency and case-insensitive comparison.
-  const cleanFilters = {
-      businessUnit: filters.businessUnit.toLowerCase(),
-      status: filters.status.toLowerCase(),
-      vehicleOwner: filters.vehicleOwner.toLowerCase(),
-      rentedOrOwned: filters.rentedOrOwned.toLowerCase(),
-  };
 
-  return vehicles.filter(v => {
-    // Compare vehicle data (also normalized) against the cleaned filter values.
-    const unitMatch = cleanFilters.businessUnit === 'all' || 
-                      (String(v.businessUnit || '').trim().toLowerCase() === cleanFilters.businessUnit);
-    
-    const statusMatch = cleanFilters.status === 'all' || 
-                        (String(v.status || '').trim().toLowerCase() === cleanFilters.status);
+  // A filter is considered "active" if it's not the default 'All' value.
+  const activeFilters = Object.entries(filters)
+    .filter(([, value]) => value !== 'All' && value !== '')
+    .map(([key, value]) => ({
+      key: key as keyof Vehicle,
+      value: normalizeValue(value) // Normalize the selected filter value for comparison
+    }));
 
-    const ownerMatch = cleanFilters.vehicleOwner === 'all' || 
-                       (String(v.vehicleOwner || '').trim().toLowerCase() === cleanFilters.vehicleOwner);
-    
-    const rentedOrOwnedMatch = cleanFilters.rentedOrOwned === 'all' || 
-                               (String(v.rentedOrOwned || '').trim().toLowerCase() === cleanFilters.rentedOrOwned);
+  // If no filters are active, return all vehicles.
+  if (activeFilters.length === 0) {
+    return vehicles;
+  }
 
-    return unitMatch && statusMatch && ownerMatch && rentedOrOwnedMatch;
+  return vehicles.filter(vehicle => {
+    // A vehicle is a match if it satisfies ALL active filters.
+    // The .every() method ensures that all conditions must be true.
+    return activeFilters.every(filter => {
+      const vehicleValue = normalizeValue(vehicle[filter.key]);
+      return vehicleValue === filter.value;
+    });
   });
 };
 
