@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Vehicle } from './types';
 import { searchVehicle, getSearchSuggestions, getUniqueBusinessUnits, getUniqueStatuses, getUniqueVehicleOwners, getUniqueRentedOrOwned } from './services/fleetService';
+import { saveFleetData, loadFleetData, clearFleetData } from './services/persistenceService';
 import SearchBar from './components/SearchBar';
 import VehicleInfoCard from './components/VehicleInfoCard';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -15,6 +16,7 @@ const App: React.FC = () => {
     const [vehicle, setVehicle] = useState<Vehicle | null | undefined>(undefined);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isParsing, setIsParsing] = useState<boolean>(false);
+    const [isInitializing, setIsInitializing] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -24,6 +26,31 @@ const App: React.FC = () => {
     const [statuses, setStatuses] = useState<string[]>([]);
     const [vehicleOwners, setVehicleOwners] = useState<string[]>([]);
     const [rentedOrOwnedValues, setRentedOrOwnedValues] = useState<string[]>([]);
+
+    useEffect(() => {
+        const initializeApp = async () => {
+            try {
+                const storedData = await loadFleetData();
+                if (storedData) {
+                    setAllVehicles(storedData.vehicles);
+                    setFileName(storedData.fileName);
+                    setLastUpdated(new Date(storedData.lastUpdated));
+                    
+                    setBusinessUnits(getUniqueBusinessUnits(storedData.vehicles));
+                    setStatuses(getUniqueStatuses(storedData.vehicles));
+                    setVehicleOwners(getUniqueVehicleOwners(storedData.vehicles));
+                    setRentedOrOwnedValues(getUniqueRentedOrOwned(storedData.vehicles));
+                }
+            } catch (err) {
+                console.error("Failed to load data from storage:", err);
+                setError("Could not load saved data. Please upload a new file.");
+            } finally {
+                setIsInitializing(false);
+            }
+        };
+
+        initializeApp();
+    }, []);
 
     const loadSuggestions = useCallback(async () => {
         if (allVehicles.length > 0) {
@@ -46,10 +73,9 @@ const App: React.FC = () => {
 
         setIsParsing(true);
         setError(null);
-        setFileName(file.name);
 
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
@@ -124,17 +150,22 @@ const App: React.FC = () => {
                             vehicle[vehicleKey] = row[key];
                         }
                     }
-                    // Add a default photo if one isn't provided in the excel
                     if (!vehicle.vehiclePhoto) {
                         vehicle.vehiclePhoto = `https://picsum.photos/seed/${vehicle.fleetNo || vehicle.regNo}/600/400`;
                     }
                     return vehicle as Vehicle;
                 });
                 
-                setAllVehicles(processedVehicles);
-                setLastUpdated(new Date());
+                const newLastUpdated = new Date();
+                await saveFleetData({
+                    vehicles: processedVehicles,
+                    fileName: file.name,
+                    lastUpdated: newLastUpdated,
+                });
 
-                // Extract unique values for report filters
+                setAllVehicles(processedVehicles);
+                setFileName(file.name);
+                setLastUpdated(newLastUpdated);
                 setBusinessUnits(getUniqueBusinessUnits(processedVehicles));
                 setStatuses(getUniqueStatuses(processedVehicles));
                 setVehicleOwners(getUniqueVehicleOwners(processedVehicles));
@@ -178,18 +209,24 @@ const App: React.FC = () => {
         }
     };
     
-    const handleReset = () => {
-        setAllVehicles([]);
-        setVehicle(undefined);
-        setError(null);
-        setSuggestions([]);
-        setFileName('');
-        setLastUpdated(null);
-        setBusinessUnits([]);
-        setStatuses([]);
-        setVehicleOwners([]);
-        setRentedOrOwnedValues([]);
-        setView('search');
+    const handleReset = async () => {
+        try {
+            await clearFleetData();
+            setAllVehicles([]);
+            setVehicle(undefined);
+            setError(null);
+            setSuggestions([]);
+            setFileName('');
+            setLastUpdated(null);
+            setBusinessUnits([]);
+            setStatuses([]);
+            setVehicleOwners([]);
+            setRentedOrOwnedValues([]);
+            setView('search');
+        } catch (err) {
+            console.error("Failed to clear stored data:", err);
+            setError("Could not clear stored data. Please refresh the page.");
+        }
     };
 
     const renderFileUpload = () => (
@@ -211,7 +248,7 @@ const App: React.FC = () => {
                 </div>
             )}
             <div className="text-xs text-gray-500 mt-6">
-                <p>Note: The file is processed in your browser and is never uploaded to a server.</p>
+                <p>Note: The file is processed and stored in your browser and is never uploaded to a server.</p>
                  <p className="mt-2">Required columns: RegNo:, fleetNo:, vehicleDescription, etc.</p>
             </div>
         </div>
@@ -252,6 +289,10 @@ const App: React.FC = () => {
     );
 
     const renderContent = () => {
+        if (isInitializing) {
+            return <LoadingSpinner />;
+        }
+
         if (allVehicles.length === 0) {
             return renderFileUpload();
         }
