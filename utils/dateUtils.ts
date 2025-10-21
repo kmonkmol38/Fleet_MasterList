@@ -1,49 +1,50 @@
+/**
+ * Parses a variety of date inputs (string, number, Date) and returns a reliable Date object set to midnight UTC.
+ * This function is designed to work with the normalized date strings (YYYY-MM-DD) from the app's cleaning step.
+ * Using UTC throughout the app prevents timezone-related bugs.
+ * @param dateInput The date value from the vehicle data.
+ * @returns A Date object set to midnight UTC, or null if the input is invalid.
+ */
 export const parseVehicleDate = (dateInput: string | number | Date | undefined | null): Date | null => {
     if (dateInput === null || dateInput === undefined || dateInput === '') return null;
 
-    // If it's already a valid Date object, return it.
+    // If it's already a valid Date object from the initial Excel parsing
     if (dateInput instanceof Date) {
         if (!isNaN(dateInput.getTime())) {
-            return dateInput;
+            // Standardize to midnight UTC to remove time-of-day and timezone effects
+            return new Date(Date.UTC(dateInput.getFullYear(), dateInput.getMonth(), dateInput.getDate()));
         }
         return null;
     }
 
-    // Handle Excel serial numbers
-    if (typeof dateInput === 'number') {
-        // Excel's epoch starts on 1900-01-01, which it incorrectly thinks is a leap year.
-        // The number of days between 1970-01-01 and 1900-01-01 is 25569.
-        const date = new Date((dateInput - 25569) * 86400000);
-        // Check for validity
-        if (!isNaN(date.getTime())) {
-            return date;
+    // Handle string dates (normalized to YYYY-MM-DD by the cleaning step)
+    if (typeof dateInput === 'string') {
+        const dateStr = dateInput.trim().split('T')[0]; // Get only the date part
+        
+        // This regex is strict for YYYY-MM-DD to ensure consistency.
+        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (match) {
+            const year = parseInt(match[1], 10);
+            const month = parseInt(match[2], 10) - 1; // Month for Date.UTC is 0-indexed
+            const day = parseInt(match[3], 10);
+
+            if (year > 1900) { // Sanity check
+                const date = new Date(Date.UTC(year, month, day));
+                // Final validation to ensure parts form a real date
+                if (!isNaN(date.getTime()) && date.getUTCFullYear() === year && date.getUTCMonth() === month && date.getUTCDate() === day) {
+                    return date;
+                }
+            }
         }
     }
     
-    // Handle string dates robustly
-    if (typeof dateInput === 'string') {
-        const dateStr = dateInput.trim();
-        
-        // Try parsing DD-MM-YYYY or DD/MM/YYYY
-        const dmyMatch = dateStr.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
-        if (dmyMatch) {
-            const day = parseInt(dmyMatch[1], 10);
-            const month = parseInt(dmyMatch[2], 10); // Month is 1-based
-            const year = parseInt(dmyMatch[3], 10);
-            
-            // Construct date in local timezone. Month in constructor is 0-indexed.
-            const date = new Date(year, month - 1, day);
-            
-            // Validate that the constructor didn't roll over (e.g., Feb 30 -> Mar 1/2)
-            if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
-                return date;
-            }
-        }
-
-        // Fallback for other formats that new Date() handles reliably (like ISO 8601)
-        const fallbackDate = new Date(dateStr);
-        if (!isNaN(fallbackDate.getTime())) {
-            return fallbackDate;
+    // Fallback for Excel serial numbers (less common if sheetjs `cellDates` works, but good for safety)
+    if (typeof dateInput === 'number') {
+        // Excel's epoch starts on 1900-01-01. Days between 1970-01-01 and 1900-01-01 is 25569.
+        const date = new Date((dateInput - 25569) * 86400000);
+        if (!isNaN(date.getTime())) {
+            // Standardize to UTC midnight
+            return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
         }
     }
 
@@ -51,15 +52,20 @@ export const parseVehicleDate = (dateInput: string | number | Date | undefined |
 };
 
 
+/**
+ * Formats a Date object into a DD-MM-YYYY string for display.
+ * It reads UTC date parts to prevent the displayed date from being a day off due to local timezone.
+ * @param date A Date object (expected to be UTC).
+ * @returns A formatted string e.g., "25-12-2024", or "N/A".
+ */
 export const formatDate = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return 'N/A';
     
-    // Use local date parts to display
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
-    const year = date.getFullYear();
+    // Use getUTC... methods to read the date components without timezone conversion.
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+    const year = date.getUTCFullYear();
     
-    // A simple sanity check to avoid displaying nonsensical years
     if (year < 1900) {
        return 'Invalid Date';
     }

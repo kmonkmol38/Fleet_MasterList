@@ -116,22 +116,23 @@ export const exportToExcel = (data: any[], fileName: string): void => {
 };
 
 export const getExpiringVehicles = (vehicles: Vehicle[], daysThreshold: number): Vehicle[] => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to start of today for consistent comparison
+    const now = new Date();
+    // Get today at midnight UTC to prevent timezone-related bugs
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
     const expiryLimit = new Date(today);
-    expiryLimit.setDate(today.getDate() + daysThreshold);
+    expiryLimit.setUTCDate(today.getUTCDate() + daysThreshold);
 
     return vehicles.filter(vehicle => {
         const expiryDate = parseVehicleDate(vehicle.registrationExpiry);
         if (!expiryDate) {
             return false;
         }
-        expiryDate.setHours(0,0,0,0);
+        // expiryDate from our parser is already UTC midnight
         return expiryDate >= today && expiryDate <= expiryLimit;
     }).sort((a, b) => { // Sort by expiry date, soonest first
-        const dateA = parseVehicleDate(a.registrationExpiry)!.getTime();
-        const dateB = parseVehicleDate(b.registrationExpiry)!.getTime();
+        const dateA = parseVehicleDate(a.registrationExpiry)?.getTime() ?? 0;
+        const dateB = parseVehicleDate(b.registrationExpiry)?.getTime() ?? 0;
         return dateA - dateB;
     });
 };

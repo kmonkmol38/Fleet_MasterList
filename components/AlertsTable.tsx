@@ -10,14 +10,14 @@ interface AlertsTableProps {
 const getDaysRemaining = (expiryDate: Date | null): { days: number; text: string } => {
     if (!expiryDate) return { days: Infinity, text: 'N/A' };
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const expiryClone = new Date(expiryDate.getTime());
-    expiryClone.setHours(0, 0, 0, 0);
+    const now = new Date();
+    // Get today at midnight UTC to match the expiry date's timezone
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-    const diffTime = expiryClone.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // expiryDate from parseVehicleDate is already UTC midnight.
+    const diffTime = expiryDate.getTime() - today.getTime();
+    // Use Math.round for the most accurate day difference calculation
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) return { days: diffDays, text: 'Expired' };
     if (diffDays === 0) return { days: 0, text: 'Today' };

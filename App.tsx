@@ -12,6 +12,62 @@ import { UploadCloud } from './components/Icons';
 // This makes TypeScript aware of the XLSX library loaded from the CDN
 declare var XLSX: any;
 
+const normalizeRentAmount = (amountInput: any): number => {
+    if (amountInput === null || amountInput === undefined) return 0;
+    if (typeof amountInput === 'number' && !isNaN(amountInput)) return amountInput;
+
+    const str = String(amountInput);
+    // Aggressively strip everything that is not a digit or a decimal point.
+    const cleaned = str.replace(/[^0-9.]/g, ''); 
+    if (cleaned === '' || cleaned === '.') return 0;
+
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+}
+
+const normalizeDate = (dateInput: any): string | Date | null => {
+    if (dateInput === null || dateInput === undefined || dateInput === '') return null;
+    
+    // If sheetjs already parsed it as a valid date, return it
+    if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
+        return dateInput;
+    }
+
+    // Handle Excel serial numbers if sheetjs failed to parse
+    if (typeof dateInput === 'number' && dateInput > 25569) {
+         const date = new Date((dateInput - 25569) * 86400000);
+         if (!isNaN(date.getTime())) return date;
+    }
+
+    if (typeof dateInput !== 'string') return null;
+
+    const dateStr = dateInput.trim();
+    // Strip time part for consistency, as we only care about the date
+    const datePart = dateStr.split(' ')[0];
+
+    let day, month, year;
+
+    // Match DD-MM-YYYY or DD/MM/YYYY
+    const dmyMatch = datePart.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (dmyMatch) {
+        day = dmyMatch[1].padStart(2, '0');
+        month = dmyMatch[2].padStart(2, '0');
+        year = dmyMatch[3];
+        // Standardize to YYYY-MM-DD string, which is universally parsable
+        return `${year}-${month}-${day}`;
+    }
+
+    // Attempt to parse with new Date() as a fallback for other formats (like ISO)
+    const parsedDate = new Date(dateStr);
+    if (!isNaN(parsedDate.getTime()) && parsedDate.getFullYear() > 1900) {
+        // Standardize to YYYY-MM-DD string
+        return `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`;
+    }
+    
+    return null; // Return null if no valid date can be determined
+}
+
+
 const App: React.FC = () => {
     const [allVehicles, setAllVehicles] = useState<Vehicle[]>([]);
     const [vehicle, setVehicle] = useState<Vehicle | null | undefined>(undefined);
@@ -81,7 +137,7 @@ const App: React.FC = () => {
                 const workbook = XLSX.read(data, { type: 'array' });
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
-                const json: any[] = XLSX.utils.sheet_to_json(worksheet, { cellDates: true });
+                const json: any[] = XLSX.utils.sheet_to_json(worksheet, { cellDates: true, raw: false });
 
                 if (json.length === 0) {
                     throw new Error("The Excel file is empty or the first sheet has no data.");
@@ -147,20 +203,7 @@ const App: React.FC = () => {
                         if (row[key] !== undefined) {
                             const vehicleKey = columnMap[key];
                             // @ts-ignore
-                            let value = row[key];
-                             if (vehicleKey === 'rentAmount') {
-                                let numericValue = 0;
-                                if (typeof value === 'string') {
-                                    // Remove commas, currency symbols, and any other non-numeric characters except for a decimal point.
-                                    const cleanedValue = value.replace(/[^0-9.]+/g, "");
-                                    numericValue = cleanedValue ? parseFloat(cleanedValue) : 0;
-                                } else if (typeof value === 'number') {
-                                    numericValue = value;
-                                }
-                                value = isNaN(numericValue) ? 0 : numericValue;
-                            }
-                             // @ts-ignore
-                            vehicle[vehicleKey] = value;
+                            vehicle[vehicleKey] = row[key];
                         }
                     }
                     if (!vehicle.vehiclePhoto) {
@@ -169,14 +212,29 @@ const App: React.FC = () => {
                     return vehicle as Vehicle;
                 });
                 
+                // Data Cleaning and Normalization Step
+                const cleanedVehicles = processedVehicles.map(vehicle => ({
+                    ...vehicle,
+                    rentAmount: normalizeRentAmount(vehicle.rentAmount),
+                    registrationExpiry: normalizeDate(vehicle.registrationExpiry),
+                    insuranceExpiry: normalizeDate(vehicle.insuranceExpiry),
+                    insuranceValidity: normalizeDate(vehicle.insuranceValidity),
+                    onHireDate: normalizeDate(vehicle.onHireDate),
+                    offHireDate: normalizeDate(vehicle.offHireDate),
+                    custodyDate: normalizeDate(vehicle.custodyDate),
+                    lvrfExpiry: normalizeDate(vehicle.lvrfExpiry),
+                    exfDate: normalizeDate(vehicle.exfDate),
+                    replacementVehicleRegExpiry: normalizeDate(vehicle.replacementVehicleRegExpiry),
+                }));
+
                 const newLastUpdated = new Date();
                 await saveFleetData({
-                    vehicles: processedVehicles,
+                    vehicles: cleanedVehicles,
                     fileName: file.name,
                     lastUpdated: newLastUpdated,
                 });
 
-                setAllVehicles(processedVehicles);
+                setAllVehicles(cleanedVehicles);
                 setFileName(file.name);
                 setLastUpdated(newLastUpdated);
                 
