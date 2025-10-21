@@ -1,5 +1,5 @@
 {
-  "name": "ALI’s Fleet Management Status and Other Details",
+  "name": "Fleet Management Status and Other Details",
   "description": "A web application to search and display vehicle details from a Fleet Master List, designed for quick access to vehicle information like registration, model, status, and more.",
   "requestFramePermissions": []
 }

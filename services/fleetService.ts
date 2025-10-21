@@ -35,7 +35,7 @@ export const getSearchSuggestions = (vehicles: Vehicle[]): Promise<{ regNos: str
  * @param value The value to normalize.
  * @returns A trimmed, lowercase string with all whitespace collapsed.
  */
-const normalizeValue = (value: any): string => {
+export const normalizeValue = (value: any): string => {
   if (value === null || value === undefined) {
     return '';
   }
@@ -87,27 +87,22 @@ export const filterVehicles = (
   vehicles: Vehicle[],
   filters: { businessUnit: string; status: string; vehicleOwner: string; rentedOrOwned: string; }
 ): Vehicle[] => {
-
-  // A filter is considered "active" if it's not the default 'All' value.
-  const activeFilters = Object.entries(filters)
-    .filter(([, value]) => value !== 'All' && value !== '')
-    .map(([key, value]) => ({
-      key: key as keyof Vehicle,
-      value: normalizeValue(value) // Normalize the selected filter value for comparison
-    }));
-
-  // If no filters are active, return all vehicles.
-  if (activeFilters.length === 0) {
+  const { businessUnit, status, vehicleOwner, rentedOrOwned } = filters;
+  
+  // An empty filter object should not return any results if the intention is to only show data after filtering.
+  // However, the function's job is just to filter. The UI will decide when to call it.
+  // An empty filter set means "match everything".
+  if (!businessUnit && !status && !vehicleOwner && !rentedOrOwned) {
     return vehicles;
   }
 
   return vehicles.filter(vehicle => {
-    // A vehicle is a match if it satisfies ALL active filters.
-    // The .every() method ensures that all conditions must be true.
-    return activeFilters.every(filter => {
-      const vehicleValue = normalizeValue(vehicle[filter.key]);
-      return vehicleValue === filter.value;
-    });
+    const businessUnitMatch = !businessUnit || normalizeValue(vehicle.businessUnit) === normalizeValue(businessUnit);
+    const statusMatch = !status || normalizeValue(vehicle.status) === normalizeValue(status);
+    const ownerMatch = !vehicleOwner || normalizeValue(vehicle.vehicleOwner) === normalizeValue(vehicleOwner);
+    const rentedOwnedMatch = !rentedOrOwned || normalizeValue(vehicle.rentedOrOwned) === normalizeValue(rentedOrOwned);
+
+    return businessUnitMatch && statusMatch && ownerMatch && rentedOwnedMatch;
   });
 };
 

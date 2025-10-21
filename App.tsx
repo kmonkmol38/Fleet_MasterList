@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Vehicle } from './types';
-import { searchVehicle, getSearchSuggestions, getUniqueBusinessUnits, getUniqueStatuses, getUniqueVehicleOwners, getUniqueRentedOrOwned } from './services/fleetService';
+import { searchVehicle, getSearchSuggestions } from './services/fleetService';
 import { saveFleetData, loadFleetData, clearFleetData } from './services/persistenceService';
 import SearchBar from './components/SearchBar';
 import VehicleInfoCard from './components/VehicleInfoCard';
@@ -22,10 +22,6 @@ const App: React.FC = () => {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [fileName, setFileName] = useState<string>('');
     const [view, setView] = useState<'search' | 'report'>('search');
-    const [businessUnits, setBusinessUnits] = useState<string[]>([]);
-    const [statuses, setStatuses] = useState<string[]>([]);
-    const [vehicleOwners, setVehicleOwners] = useState<string[]>([]);
-    const [rentedOrOwnedValues, setRentedOrOwnedValues] = useState<string[]>([]);
 
     useEffect(() => {
         const initializeApp = async () => {
@@ -35,11 +31,6 @@ const App: React.FC = () => {
                     setAllVehicles(storedData.vehicles);
                     setFileName(storedData.fileName);
                     setLastUpdated(new Date(storedData.lastUpdated));
-                    
-                    setBusinessUnits(getUniqueBusinessUnits(storedData.vehicles));
-                    setStatuses(getUniqueStatuses(storedData.vehicles));
-                    setVehicleOwners(getUniqueVehicleOwners(storedData.vehicles));
-                    setRentedOrOwnedValues(getUniqueRentedOrOwned(storedData.vehicles));
                 }
             } catch (err) {
                 console.error("Failed to load data from storage:", err);
@@ -100,7 +91,7 @@ const App: React.FC = () => {
                     'designation': 'designation',
                     'Status': 'status',
                     'businessUnit': 'businessUnit',
-                    'rentAmount': 'rentAmount',
+                    'Rent Amount (QAR)': 'rentAmount',
                     'LastUpdated': 'lastUpdated',
                     'vehiclePhoto': 'vehiclePhoto',
                     'S. #': 'sNo',
@@ -166,11 +157,7 @@ const App: React.FC = () => {
                 setAllVehicles(processedVehicles);
                 setFileName(file.name);
                 setLastUpdated(newLastUpdated);
-                setBusinessUnits(getUniqueBusinessUnits(processedVehicles));
-                setStatuses(getUniqueStatuses(processedVehicles));
-                setVehicleOwners(getUniqueVehicleOwners(processedVehicles));
-                setRentedOrOwnedValues(getUniqueRentedOrOwned(processedVehicles));
-
+                
             } catch (err: any) {
                 setError(`Failed to parse the Excel file. Please ensure it is a valid .xlsx file with the correct column headers. Error: ${err.message}`);
                 setFileName('');
@@ -218,10 +205,6 @@ const App: React.FC = () => {
             setSuggestions([]);
             setFileName('');
             setLastUpdated(null);
-            setBusinessUnits([]);
-            setStatuses([]);
-            setVehicleOwners([]);
-            setRentedOrOwnedValues([]);
             setView('search');
         } catch (err) {
             console.error("Failed to clear stored data:", err);
@@ -301,7 +284,7 @@ const App: React.FC = () => {
             case 'search':
                 return renderSearchView();
             case 'report':
-                return <ReportView vehicles={allVehicles} businessUnits={businessUnits} statuses={statuses} vehicleOwners={vehicleOwners} rentedOrOwnedValues={rentedOrOwnedValues} />;
+                return <ReportView vehicles={allVehicles} />;
             default:
                 return renderSearchView();
         }
@@ -312,7 +295,7 @@ const App: React.FC = () => {
             <header className="p-4 sm:p-6 shadow-md bg-gray-800/50 backdrop-blur-sm sticky top-0 z-10">
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <div>
-                        <h1 className="text-2xl sm:text-3xl font-bold text-cyan-400">ALI’s Fleet Management</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-cyan-400">Fleet Management Updated MasterList</h1>
                         <p className="text-sm text-gray-400">Status and Other Details</p>
                     </div>
                      <div className="flex items-center gap-4">

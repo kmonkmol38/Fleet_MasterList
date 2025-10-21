@@ -1,31 +1,49 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Vehicle } from '../types';
-import { filterVehicles, exportToExcel } from '../services/fleetService';
+import { 
+  filterVehicles, 
+  exportToExcel,
+  getUniqueBusinessUnits,
+  getUniqueRentedOrOwned,
+  getUniqueStatuses,
+  getUniqueVehicleOwners,
+  normalizeValue
+} from '../services/fleetService';
 import VehicleReportTable from './VehicleReportTable';
 import { Download, RotateCcw } from './Icons';
 
 interface ReportViewProps {
   vehicles: Vehicle[];
-  businessUnits: string[];
-  statuses: string[];
-  vehicleOwners: string[];
-  rentedOrOwnedValues: string[];
 }
 
-const ReportView: React.FC<ReportViewProps> = ({ vehicles, businessUnits, statuses, vehicleOwners, rentedOrOwnedValues }) => {
+const ReportView: React.FC<ReportViewProps> = ({ vehicles }) => {
   const initialFilters = {
-    businessUnit: 'All',
-    status: 'All',
-    vehicleOwner: 'All',
-    rentedOrOwned: 'All',
+    businessUnit: '',
+    status: '',
+    vehicleOwner: '',
+    rentedOrOwned: '',
   };
   
   const [filters, setFilters] = useState(initialFilters);
-  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>(vehicles);
+  const [displayedVehicles, setDisplayedVehicles] = useState<Vehicle[]>([]);
+  const [hasAppliedFilters, setHasAppliedFilters] = useState(false);
 
-  useEffect(() => {
-    const filtered = filterVehicles(vehicles, filters);
-    setFilteredVehicles(filtered);
+  const availableOptions = useMemo(() => {
+      const getFilteredVehicles = (exclude: keyof typeof filters | null) => {
+          return vehicles.filter(v =>
+              (exclude === 'businessUnit' || !filters.businessUnit || normalizeValue(v.businessUnit) === normalizeValue(filters.businessUnit)) &&
+              (exclude === 'status' || !filters.status || normalizeValue(v.status) === normalizeValue(filters.status)) &&
+              (exclude === 'vehicleOwner' || !filters.vehicleOwner || normalizeValue(v.vehicleOwner) === normalizeValue(filters.vehicleOwner)) &&
+              (exclude === 'rentedOrOwned' || !filters.rentedOrOwned || normalizeValue(v.rentedOrOwned) === normalizeValue(filters.rentedOrOwned))
+          );
+      };
+
+      return {
+          businessUnits: getUniqueBusinessUnits(getFilteredVehicles('businessUnit')),
+          statuses: getUniqueStatuses(getFilteredVehicles('status')),
+          vehicleOwners: getUniqueVehicleOwners(getFilteredVehicles('vehicleOwner')),
+          rentedOrOwnedValues: getUniqueRentedOrOwned(getFilteredVehicles('rentedOrOwned')),
+      };
   }, [filters, vehicles]);
 
   const handleFilterChange = (filterName: keyof typeof filters, value: string) => {
@@ -35,12 +53,20 @@ const ReportView: React.FC<ReportViewProps> = ({ vehicles, businessUnits, status
     }));
   };
   
+  const handleApplyFilters = () => {
+    const results = filterVehicles(vehicles, filters);
+    setDisplayedVehicles(results);
+    setHasAppliedFilters(true);
+  };
+
   const handleResetFilters = () => {
     setFilters(initialFilters);
+    setDisplayedVehicles([]);
+    setHasAppliedFilters(false);
   };
 
   const handleExport = () => {
-    const dataToExport = filteredVehicles.map((vehicle, index) => ({
+    const dataToExport = displayedVehicles.map((vehicle, index) => ({
       'Serial Number': index + 1,
       'Fleet No': vehicle.fleetNo,
       'Reg No': vehicle.regNo,
@@ -55,18 +81,19 @@ const ReportView: React.FC<ReportViewProps> = ({ vehicles, businessUnits, status
     }));
 
     const filterParts = Object.entries(filters)
-      .filter(([, value]) => value !== 'All')
+      .filter(([, value]) => value)
       .map(([key, value]) => `${key.replace('Unit', '')}-${value}`)
       .join('_');
-    const fileName = `Fleet_Report_${filterParts || 'All'}_${new Date().toISOString().split('T')[0]}`;
+    const fileName = `Fleet_Report_${filterParts || 'Current'}_${new Date().toISOString().split('T')[0]}`;
     exportToExcel(dataToExport, fileName);
   };
+
+  const isAnyFilterSelected = Object.values(filters).some(val => val !== '');
 
   return (
     <div className="animate-fade-in">
       <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-           {/* Business Unit Filter */}
           <div className="flex flex-col">
             <label htmlFor="businessUnitFilter" className="text-sm font-medium text-gray-400 mb-1">
               Business Unit
@@ -77,12 +104,11 @@ const ReportView: React.FC<ReportViewProps> = ({ vehicles, businessUnits, status
               onChange={(e) => handleFilterChange('businessUnit', e.target.value)}
               className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
             >
-              <option value="All">All Business Units</option>
-              {businessUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+              <option value="" disabled>Select Business Unit</option>
+              {availableOptions.businessUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
             </select>
           </div>
 
-          {/* Status Filter */}
           <div className="flex flex-col">
             <label htmlFor="statusFilter" className="text-sm font-medium text-gray-400 mb-1">
               Status
@@ -93,12 +119,11 @@ const ReportView: React.FC<ReportViewProps> = ({ vehicles, businessUnits, status
               onChange={(e) => handleFilterChange('status', e.target.value)}
               className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
             >
-              <option value="All">All Statuses</option>
-              {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+              <option value="" disabled>Select Status</option>
+              {availableOptions.statuses.map((status) => <option key={status} value={status}>{status}</option>)}
             </select>
           </div>
 
-          {/* Vehicle Owner Filter */}
           <div className="flex flex-col">
             <label htmlFor="ownerFilter" className="text-sm font-medium text-gray-400 mb-1">
               Vehicle Owner
@@ -109,12 +134,11 @@ const ReportView: React.FC<ReportViewProps> = ({ vehicles, businessUnits, status
               onChange={(e) => handleFilterChange('vehicleOwner', e.target.value)}
               className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
             >
-              <option value="All">All Owners</option>
-              {vehicleOwners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
+              <option value="" disabled>Select Owner</option>
+              {availableOptions.vehicleOwners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
             </select>
           </div>
 
-          {/* Rented or Owned Filter */}
           <div className="flex flex-col">
             <label htmlFor="rentedOrOwnedFilter" className="text-sm font-medium text-gray-400 mb-1">
               Rented or Owned
@@ -125,8 +149,8 @@ const ReportView: React.FC<ReportViewProps> = ({ vehicles, businessUnits, status
               onChange={(e) => handleFilterChange('rentedOrOwned', e.target.value)}
               className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
             >
-              <option value="All">All Types</option>
-              {rentedOrOwnedValues.map((type) => <option key={type} value={type}>{type}</option>)}
+              <option value="" disabled>Select Type</option>
+              {availableOptions.rentedOrOwnedValues.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
           </div>
         </div>
@@ -139,22 +163,48 @@ const ReportView: React.FC<ReportViewProps> = ({ vehicles, businessUnits, status
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Reset Filters
             </button>
-            <button
-            onClick={handleExport}
-            disabled={filteredVehicles.length === 0}
-            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors"
-            >
-            <Download className="w-4 h-4 mr-2" />
-            Export to Excel
-            </button>
+            <div className="flex-grow flex flex-col sm:flex-row justify-end items-center gap-4 w-full sm:w-auto">
+                 <button
+                    onClick={handleApplyFilters}
+                    disabled={!isAnyFilterSelected}
+                    className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors"
+                    >
+                    Apply Filters
+                </button>
+                <button
+                onClick={handleExport}
+                disabled={displayedVehicles.length === 0}
+                className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors"
+                >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export to Excel
+                </button>
+            </div>
         </div>
       </div>
 
-      <div className="mb-4 text-sm text-gray-400">
-        <p>Displaying {filteredVehicles.length} of {vehicles.length} total vehicles.</p>
+      <div className="mb-4 text-gray-400 flex items-center gap-4">
+        {hasAppliedFilters ? (
+          <>
+            <div className="flex items-center justify-center w-16 h-16 bg-cyan-500/20 border-2 border-cyan-500/50 rounded-full">
+                <span className="text-3xl font-bold text-white">{displayedVehicles.length}</span>
+            </div>
+            <p className="text-lg">
+                Vehicles found <span className="text-gray-500 font-light">out of {vehicles.length} total.</span>
+            </p>
+          </>
+        ) : (
+          <p className="text-base">Please select at least one filter and click "Apply Filters" to view the report.</p>
+        )}
       </div>
       
-      <VehicleReportTable vehicles={filteredVehicles} />
+      {hasAppliedFilters ? (
+        <VehicleReportTable vehicles={displayedVehicles} />
+      ) : (
+        <div className="text-center text-gray-500 py-16 bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-700">
+            <p>The report data will be displayed here once filters are applied.</p>
+        </div>
+      )}
     </div>
   );
 };
