@@ -6,7 +6,7 @@ import SearchBar from './components/SearchBar';
 import VehicleInfoCard from './components/VehicleInfoCard';
 import LoadingSpinner from './components/LoadingSpinner';
 import ReportView from './components/ReportView';
-import { RefreshCw, UploadCloud } from './components/Icons';
+import { UploadCloud } from './components/Icons';
 
 // This makes TypeScript aware of the XLSX library loaded from the CDN
 declare var XLSX: any;
@@ -315,30 +315,33 @@ const App: React.FC = () => {
                         <h1 className="text-2xl sm:text-3xl font-bold text-cyan-400">ALI’s Fleet Management</h1>
                         <p className="text-sm text-gray-400">Status and Other Details</p>
                     </div>
-                     <div className="flex items-center gap-2">
+                     <div className="flex items-center gap-4">
                         {allVehicles.length > 0 && (
-                            <div className="flex items-center bg-gray-700/50 rounded-lg p-1">
+                            <>
+                                <div className="flex items-center bg-gray-700/50 rounded-lg p-1">
+                                    <button
+                                        onClick={() => setView('search')}
+                                        className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${view === 'search' ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}
+                                    >
+                                        Search
+                                    </button>
+                                    <button
+                                        onClick={() => setView('report')}
+                                        className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${view === 'report' ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}
+                                    >
+                                        Reports
+                                    </button>
+                                </div>
                                 <button
-                                    onClick={() => setView('search')}
-                                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${view === 'search' ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}
+                                    onClick={handleReset}
+                                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md text-gray-300 bg-gray-700/80 hover:bg-gray-700 border border-gray-600 transition-colors duration-200"
+                                    title="Clear current data and upload a new file"
                                 >
-                                    Search
+                                    <UploadCloud className="w-5 h-5" />
+                                    Upload New
                                 </button>
-                                <button
-                                    onClick={() => setView('report')}
-                                    className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${view === 'report' ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}
-                                >
-                                    Reports
-                                </button>
-                            </div>
+                            </>
                         )}
-                        <button
-                            onClick={handleReset}
-                            className="p-2 rounded-full hover:bg-gray-700 transition-colors duration-200"
-                            title="Upload New File"
-                        >
-                            <RefreshCw className="w-5 h-5" />
-                        </button>
                     </div>
                 </div>
             </header>
