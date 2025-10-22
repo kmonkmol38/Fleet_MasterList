@@ -1,12 +1,15 @@
+
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Vehicle } from './types';
-import { searchVehicle, getSearchSuggestions, getExpiringVehicles, getExpiredVehicles } from './services/fleetService';
+import { searchVehicle, getSearchSuggestions, getExpiringVehicles, getExpiredVehicles, normalizeValue } from './services/fleetService';
 import { saveFleetData, loadFleetData, clearFleetData } from './services/persistenceService';
 import SearchBar from './components/SearchBar';
 import VehicleInfoCard from './components/VehicleInfoCard';
 import LoadingSpinner from './components/LoadingSpinner';
 import ReportView from './components/ReportView';
 import AlertView from './components/AlertView';
+import SummaryView from './components/SummaryView';
 import { UploadCloud } from './components/Icons';
 
 // This makes TypeScript aware of the XLSX library loaded from the CDN
@@ -78,7 +81,7 @@ const App: React.FC = () => {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [fileName, setFileName] = useState<string>('');
-    const [view, setView] = useState<'search' | 'report' | 'alert'>('search');
+    const [view, setView] = useState<'search' | 'report' | 'alert' | 'summary'>('search');
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
@@ -118,8 +121,14 @@ const App: React.FC = () => {
 
     const upcomingAlertsCount = useMemo(() => {
         if (allVehicles.length > 0) {
-            // Only count vehicles that are expiring soon for the badge, not those already expired.
-            return getExpiringVehicles(allVehicles, 20).length;
+            // Filter for 'Working' status vehicles first, as the Alerts tab only shows them.
+            const workingVehicles = allVehicles.filter(v => normalizeValue(v.status) === 'working');
+            
+            // The badge should reflect all actionable alerts: expired + expiring soon (up to 20 days).
+            const expiringCount = getExpiringVehicles(workingVehicles, 20).length;
+            const expiredCount = getExpiredVehicles(workingVehicles).length;
+            
+            return expiringCount + expiredCount;
         }
         return 0;
     }, [allVehicles]);
@@ -207,8 +216,28 @@ const App: React.FC = () => {
                             vehicle[vehicleKey] = row[key];
                         }
                     }
-                    if (!vehicle.vehiclePhoto) {
-                        vehicle.vehiclePhoto = `https://picsum.photos/seed/${vehicle.fleetNo || vehicle.regNo}/600/400`;
+
+                    // If a photo URL isn't provided in the Excel file, generate a relevant one.
+                    if (!vehicle.vehiclePhoto || String(vehicle.vehiclePhoto).trim() === '') {
+                        // Construct a search query from the most descriptive fields.
+                        const queryTerms = [
+                            vehicle.brand,
+                            vehicle.subCategory,
+                            vehicle.vehicleDescription,
+                        ]
+                        .filter(Boolean) // Remove empty values
+                        .join(' ')
+                        .replace(/[\W_]+/g, ' ') // Replace non-alphanumeric with space
+                        .trim()
+                        .replace(/\s+/g, ','); // Replace spaces with commas for query
+
+                        if (queryTerms) {
+                            // Use Unsplash Source for a more relevant placeholder image
+                            vehicle.vehiclePhoto = `https://source.unsplash.com/600x400/?${encodeURIComponent(queryTerms)}`;
+                        } else {
+                            // Fallback to the original seeded image if no descriptive terms are found
+                            vehicle.vehiclePhoto = `https://picsum.photos/seed/${vehicle.fleetNo || vehicle.regNo}/600/400`;
+                        }
                     }
                     return vehicle as Vehicle;
                 });
@@ -380,6 +409,8 @@ const App: React.FC = () => {
                 return <ReportView vehicles={allVehicles} onVehicleSelect={handleReportRowClick} />;
             case 'alert':
                 return <AlertView vehicles={allVehicles} onVehicleSelect={handleReportRowClick} />;
+            case 'summary':
+                return <SummaryView vehicles={allVehicles} onVehicleSelect={handleReportRowClick} />;
             default:
                 return renderSearchView();
         }
@@ -415,10 +446,16 @@ const App: React.FC = () => {
                                     >
                                         Alerts
                                         {upcomingAlertsCount > 0 && (
-                                            <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+                                            <span className="absolute -top-2 -right-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
                                                 {upcomingAlertsCount}
                                             </span>
                                         )}
+                                    </button>
+                                     <button
+                                        onClick={() => setView('summary')}
+                                        className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${view === 'summary' ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}
+                                    >
+                                        Summary
                                     </button>
                                 </div>
                                 <button

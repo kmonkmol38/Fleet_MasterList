@@ -1,6 +1,8 @@
+
 import React from 'react';
 import { Vehicle } from '../types';
 import { parseVehicleDate, formatDate } from '../utils/dateUtils';
+import { getStatusBadgeClass } from '../utils/styleUtils';
 
 interface AlertsTableProps {
   vehicles: Vehicle[];
@@ -48,7 +50,8 @@ const AlertsTable: React.FC<AlertsTableProps> = ({ vehicles, onVehicleSelect }) 
             <th scope="col" className="px-6 py-3 w-[5%]">S.No.</th>
             <th scope="col" className="px-6 py-3 w-[10%]">Fleet No</th>
             <th scope="col" className="px-6 py-3 w-[10%]">Reg No</th>
-            <th scope="col" className="px-6 py-3 w-[40%]">Vehicle Description</th>
+            <th scope="col" className="px-6 py-3 w-[30%]">Vehicle Description</th>
+            <th scope="col" className="px-6 py-3 w-[10%]">Status</th>
             <th scope="col" className="px-6 py-3 w-[15%]">Expiry Date</th>
             <th scope="col" className="px-6 py-3 w-[20%]">Days Remaining</th>
           </tr>
@@ -69,6 +72,11 @@ const AlertsTable: React.FC<AlertsTableProps> = ({ vehicles, onVehicleSelect }) 
                 <td className="px-6 py-4 font-medium whitespace-nowrap">{vehicle.fleetNo || 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{vehicle.regNo || 'N/A'}</td>
                 <td className="px-6 py-4">{vehicle.vehicleDescription || 'N/A'}</td>
+                <td className="px-6 py-4">
+                   <span className={`px-2 py-1 text-xs font-semibold rounded-full border whitespace-nowrap ${getStatusBadgeClass(vehicle.status)}`}>
+                      {vehicle.status || 'N/A'}
+                  </span>
+                </td>
                 <td className="px-6 py-4">{formatDate(expiryDate)}</td>
                 <td className={`px-6 py-4 font-semibold ${daysClass}`}>{text}</td>
               </tr>

@@ -1,8 +1,11 @@
+
+
 import React, { useMemo, useState } from 'react';
 import { Vehicle } from '../types';
-import { getExpiringVehicles, getExpiredVehicles } from '../services/fleetService';
+import { getExpiringVehicles, getExpiredVehicles, normalizeValue, exportToExcel } from '../services/fleetService';
 import AlertsTable from './AlertsTable';
-import { Bell } from './Icons';
+import { Bell, Download } from './Icons';
+import { parseVehicleDate, formatDate } from '../utils/dateUtils';
 
 interface AlertViewProps {
   vehicles: Vehicle[];
@@ -16,13 +19,52 @@ const AlertView: React.FC<AlertViewProps> = ({ vehicles, onVehicleSelect }) => {
   // Default filter is 'expired' to show most urgent items first
   const [activeFilter, setActiveFilter] = useState<AlertFilter>('expired');
 
+  const workingVehicles = useMemo(() =>
+    vehicles.filter(v => normalizeValue(v.status) === 'working'),
+    [vehicles]
+  );
+
   const displayedVehicles = useMemo(() => {
     if (activeFilter === 'expired') {
-      return getExpiredVehicles(vehicles);
+      return getExpiredVehicles(workingVehicles);
     }
     // For numeric filters (3, 7, 20), get expiring vehicles
-    return getExpiringVehicles(vehicles, activeFilter);
-  }, [vehicles, activeFilter]);
+    return getExpiringVehicles(workingVehicles, activeFilter);
+  }, [workingVehicles, activeFilter]);
+
+  const getDaysRemainingForExport = (expiryDate: Date | null): string => {
+    if (!expiryDate) return 'N/A';
+    
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const diffTime = expiryDate.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return 'Expired';
+    if (diffDays === 0) return 'Today';
+    return `${diffDays} day(s)`;
+  };
+  
+  const handleExport = () => {
+    if (displayedVehicles.length === 0) return;
+
+    const dataToExport = displayedVehicles.map((vehicle, index) => {
+        const expiryDate = parseVehicleDate(vehicle.registrationExpiry);
+        return {
+            'S.No.': index + 1,
+            'Fleet No': vehicle.fleetNo,
+            'Reg No': vehicle.regNo,
+            'Vehicle Description': vehicle.vehicleDescription,
+            'Status': vehicle.status,
+            'Expiry Date': formatDate(expiryDate),
+            'Days Remaining': getDaysRemainingForExport(expiryDate),
+        };
+    });
+
+    const filterName = activeFilter === 'expired' ? 'Expired' : `Expiring_in_${activeFilter}_days`;
+    const fileName = `Vehicle_Alerts_${filterName}_${new Date().toISOString().split('T')[0]}`;
+    exportToExcel(dataToExport, fileName);
+  };
 
   const filters: { label: string; value: AlertFilter }[] = [
     { label: 'Expired', value: 'expired' },
@@ -35,7 +77,7 @@ const AlertView: React.FC<AlertViewProps> = ({ vehicles, onVehicleSelect }) => {
     if (activeFilter === 'expired') {
       return {
         title: 'Expired Registrations',
-        description: 'These vehicles require immediate attention as their registration is out of date.',
+        description: "The following 'Working' status vehicles require immediate attention as their registration is out of date.",
         iconColor: 'text-red-400',
         borderColor: 'border-red-700',
         bgColor: 'bg-red-900/50',
@@ -43,7 +85,7 @@ const AlertView: React.FC<AlertViewProps> = ({ vehicles, onVehicleSelect }) => {
     }
     return {
       title: 'Upcoming Expiries',
-      description: `Vehicles with registration expiring in the next ${activeFilter} days.`,
+      description: `Showing 'Working' status vehicles with registration expiring in the next ${activeFilter} days.`,
       iconColor: 'text-yellow-400',
       borderColor: 'border-gray-700',
       bgColor: 'bg-gray-800',
@@ -62,9 +104,9 @@ const AlertView: React.FC<AlertViewProps> = ({ vehicles, onVehicleSelect }) => {
   
   const getNoResultsText = () => {
        if (activeFilter === 'expired') {
-          return "No expired registrations found.";
+          return "No expired registrations found for 'Working' status vehicles.";
       }
-      return `No upcoming registration expiries in the next ${activeFilter} days.`;
+      return `No upcoming registration expiries in the next ${activeFilter} days for 'Working' status vehicles.`;
   }
 
   return (
@@ -98,7 +140,16 @@ const AlertView: React.FC<AlertViewProps> = ({ vehicles, onVehicleSelect }) => {
 
       {displayedVehicles.length > 0 ? (
         <>
-          <p className="text-gray-300">{getResultsText()}</p>
+          <div className="flex justify-between items-center">
+              <p className="text-gray-300">{getResultsText()}</p>
+              <button
+                  onClick={handleExport}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-green-500 transition-colors"
+              >
+                  <Download className="w-4 h-4" />
+                  Export to Excel
+              </button>
+          </div>
           <AlertsTable vehicles={displayedVehicles} onVehicleSelect={onVehicleSelect} />
         </>
       ) : (
