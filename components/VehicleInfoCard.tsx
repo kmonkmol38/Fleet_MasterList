@@ -51,6 +51,7 @@ const VehicleInfoCard: React.FC<VehicleInfoCardProps> = ({ vehicle }) => {
                         <InfoRow label="Chassis No" value={vehicle.chassisNo} />
                         <InfoRow label="Engine No" value={vehicle.engineNo} />
                         <InfoRow label="Seating Capacity" value={vehicle.seatingCapacity} />
+                        <InfoRow label="GPS" value={vehicle.gps} />
                         <InfoRow label="Vehicle Owner" value={vehicle.vehicleOwner} />
                         
                         <SectionHeader title="Contract & Dates" />
